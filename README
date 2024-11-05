@@ -1,4 +1,6 @@
 
+Basic setup to use iptables for load balancing across machines.
+Assumes vagrant is working withe qemu provider.
 
 1. Start two containers
 docker run -it --rm --name web1 nginx
