@@ -1,0 +1,19 @@
+
+
+1. Start two containers
+docker run -it --rm --name web1 nginx
+docker run -it --rm --name web2 nginx
+
+2. Get IP address of those containers. Say 172.17.0.3 and 172.17.0.3
+3. Decide a cluster IP address to be assigned to the service.
+4. Setup iptable route rules with clusterIP address forwarding the requests to container ip address.
+
+export FRONT_IP=192.168.10.10
+export BACKEND2_IP=172.17.0.3
+export BACKEND1_IP=172.17.0.2
+
+iptables -t nat -A OUTPUT -p tcp --dport 80 -d $FRONT_IP -m statistic \
+--mode random --probability 0.5 -j DNAT --to-destination $BACKEND1_IP:80
+
+iptables -t nat -A OUTPUT -p tcp --dport 80 -d $FRONT_IP \
+-j DNAT --to-destination $BACKEND2_IP:80
