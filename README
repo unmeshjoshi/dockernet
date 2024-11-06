@@ -143,3 +143,72 @@ docker network inspect vxlan_net
 sudo iptables -t nat -L -n -v
 
 sudo tcpdump -i eth1 'port 4789'
+
+
+
+## Explanation with example
+Let us explain IP addressing and CIDR notation using 10.0.0.1/24 as an example.
+IP Address Format (10.0.0.1/24)
+IP Address Part (10.0.0.1):
+Made up of 4 octets (8 bits each): 10 | 0 | 0 | 1
+In binary: 00001010.00000000.00000000.00000001
+CIDR Suffix (/24):
+The /24 means "use first 24 bits for network portion"
+Leaves last 8 bits for host addresses (32-24 = 8 bits)
+2^8 = 256 possible addresses (0-255)
+Network Range for 10.0.0.1/24
+Network Address: 10.0.0.0
+First Usable:    10.0.0.1
+Last Usable:     10.0.0.254
+Broadcast:       10.0.0.255
+Subnet Mask:     255.255.255.0
+
+In our VXLAN setup:
+# On node1
+sudo ip addr add 10.0.0.1/24 dev vxlan0
+# This means:
+# - VXLAN interface can communicate with addresses 10.0.0.0 through 10.0.0.255
+# - Node1 gets 10.0.0.1 as its VXLAN interface address
+
+# On node2
+sudo ip addr add 10.0.0.2/24 dev vxlan0
+# This means:
+# - Same network range (10.0.0.0/24)
+# - Node2 gets 10.0.0.2 as its VXLAN interface address
+
+Docker Network Splitting
+In our setup, we split this /24 network between the two nodes:
+# Node1 Docker network
+--subnet=10.0.0.0/24      # Full network range
+--ip-range=10.0.0.0/25    # First half (0-127)
+# This means containers on node1 get IPs from 10.0.0.1 to 10.0.0.127
+
+# Node2 Docker network
+--subnet=10.0.0.0/24      # Full network range
+--ip-range=10.0.0.128/25  # Second half (128-255)
+# This means containers on node2 get IPs from 10.0.0.128 to 10.0.0.254
+
+Visual Representation:
+10.0.0.0/24 Network Layout:
++------------------------------------------------------------------------------+
+|                                  10.0.0.0/24                                  |
++------------------------------------------------------------------------------+
+|           Node1 Range           |              Node2 Range                    |
+|          10.0.0.0/25           |             10.0.0.128/25                   |
+| 10.0.0.1 - 10.0.0.127         |          10.0.0.128 - 10.0.0.254           |
++------------------------------------------------------------------------------+
+↑               ↑                 ↑                    ↑                        ↑
+|               |                 |                    |                        |
+Network    Node1 VXLAN      Middle of       Node2 VXLAN                  Broadcast
+Address    (10.0.0.1)       Network         (10.0.0.2)                   Address
+
+Key Points:
+/24 gives us 256 addresses (10.0.0.0 - 10.0.0.255)
+We split this into two /25 networks (128 addresses each)
+Node1 uses first half (0-127)
+Node2 uses second half (128-255)
+VXLAN interfaces (10.0.0.1 and 10.0.0.2) can communicate with all addresses in the range
+This setup ensures:
+No IP conflicts between containers on different nodes
+Clear IP range allocation
+Full connectivity across the VXLAN network
