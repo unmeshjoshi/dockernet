@@ -1,3 +1,4 @@
+# Load Balancer on single machine
 
 Basic setup to use iptables for load balancing across machines.
 Assumes vagrant is working withe qemu provider.
@@ -19,3 +20,126 @@ iptables -t nat -A OUTPUT -p tcp --dport 80 -d $FRONT_IP -m statistic \
 
 iptables -t nat -A OUTPUT -p tcp --dport 80 -d $FRONT_IP \
 -j DNAT --to-destination $BACKEND2_IP:80
+
+# Load Balancer on two machines
+
+# Two-Node Docker Load Balancing with VXLAN
+
+This setup demonstrates Docker container load balancing across two nodes using VXLAN for container networking and iptables for load balancing.
+
+## Prerequisites
+- Vagrant with QEMU provider
+- At least 4GB RAM available
+- ARM64 architecture (using perk/ubuntu-2204-arm64 box)
+
+## Quick Start
+
+1. Clone this repository and start the VMs:
+vagrant up
+2. SSH into the nodes in separate terminals:
+vagrant ssh node1
+vagrant ssh node2
+## Setup Steps
+
+### 1. Set up VXLAN
+
+On node1:
+Create VXLAN interface
+sudo ip link add vxlan0 type vxlan \
+id 100 \
+local 192.168.56.10 \
+remote 192.168.56.11 \
+dev eth1 \
+dstport 4789
+Configure VXLAN interface
+sudo ip link set vxlan0 up
+sudo ip addr add 10.0.0.1/24 dev vxlan0
+
+On node2:
+Create VXLAN interface
+sudo ip link add vxlan0 type vxlan \
+id 100 \
+local 192.168.56.11 \
+remote 192.168.56.10 \
+dev eth1 \
+dstport 4789
+Configure VXLAN interface
+sudo ip link set vxlan0 up
+sudo ip addr add 10.0.0.2/24 dev vxlan0
+
+### 2. Create Docker Networks
+On node1:
+Create Docker network
+sudo docker network create --driver=bridge \
+--subnet=10.0.0.0/24 \
+--ip-range=10.0.0.0/25 \
+--aux-address="host=10.0.0.1" \
+-o "com.docker.network.bridge.name=docker_vxlan" \
+vxlan_net
+Connect bridge to VXLAN
+sudo ip link set docker_vxlan master vxlan0
+
+On node2:
+Create Docker network
+sudo docker network create --driver=bridge \
+--subnet=10.0.0.0/24 \
+--ip-range=10.0.0.128/25 \
+--aux-address="host=10.0.0.2" \
+-o "com.docker.network.bridge.name=docker_vxlan" \
+vxlan_net
+Connect bridge to VXLAN
+sudo ip link set docker_vxlan master vxlan0
+
+### 3. Launch Nginx Containers
+On node1:
+Start nginx container
+sudo docker run -d --name web1 --network vxlan_net nginx
+Add test content
+docker exec web1 sh -c 'echo "Hello from Web1" > /usr/share/nginx/html/index.html'
+
+On node2:
+Start nginx container
+sudo docker run -d --name web2 --network vxlan_net nginx
+Add test content
+docker exec web2 sh -c 'echo "Hello from Web2" > /usr/share/nginx/html/index.html'
+
+### 4. Configure Load Balancing
+
+On node1:
+export BACKEND1_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' web1)
+export BACKEND2_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' web2)
+export FRONT_IP=192.168.56.100
+
+Add virtual IP
+sudo ip addr add $FRONT_IP/32 dev eth1
+Add iptables rules
+sudo iptables -t nat -A OUTPUT -p tcp --dport 80 -d $FRONT_IP -m statistic \
+--mode random --probability 0.5 -j DNAT --to-destination $BACKEND1_IP:80
+sudo iptables -t nat -A OUTPUT -p tcp --dport 80 -d $FRONT_IP \
+-j DNAT --to-destination $BACKEND2_IP:80
+sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -d $FRONT_IP -m statistic \
+--mode random --probability 0.5 -j DNAT --to-destination $BACKEND1_IP:80
+sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -d $FRONT_IP \
+-j DNAT --to-destination $BACKEND2_IP:80
+sudo iptables -A FORWARD -j ACCEPT
+
+## Testing
+
+1. Test VXLAN connectivity:
+From node1
+ping 10.0.0.2
+From node2
+ping 10.0.0.1
+
+2. Test load balancing:
+From node1
+
+for i in {1..10}; do curl http://192.168.56.100; done
+
+ip -d link show vxlan0
+
+docker network inspect vxlan_net
+
+sudo iptables -t nat -L -n -v
+
+sudo tcpdump -i eth1 'port 4789'
