@@ -8,6 +8,7 @@ apt-get install -y \
     net-tools \
     tcpdump \
     iptables \
+    bridge-utils \
     curl
 
 apt-get install -y ca-certificates curl 
@@ -29,6 +30,27 @@ ulimit -n 65536 in /etc/init.d/docker
 service docker start
 
 
+# Function to wait for Docker to be ready
+wait_for_docker() {
+    echo "Waiting for Docker to start..."
+    local max_attempts=30
+    local attempt=1
+    
+    while ! docker info >/dev/null 2>&1; do
+        if [ $attempt -gt $max_attempts ]; then
+            echo "Docker did not start within $max_attempts attempts"
+            exit 1
+        fi
+        echo "Attempt $attempt/$max_attempts: Docker is not ready yet..."
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+    echo "Docker is ready!"
+}
+
+# Wait for Docker to be ready
+wait_for_docker
+
 # Enable IP forwarding
 echo 1 > /proc/sys/net/ipv4/ip_forward
 
@@ -43,7 +65,7 @@ docker network create -o com.docker.network.bridge.name=docker_br \
 if [ "$(hostname)" = "node1" ]; then
     # Node1 VXLAN setup
     ip link add vxlan-demo type vxlan id 100 remote 192.168.56.11 dstport 4789 
-    ip link set vxlan0 up
+    ip link set vxlan-demo up
 
     # Add the vxlan interface to the docker bridge
     brctl addif docker_br vxlan-demo
@@ -54,7 +76,7 @@ if [ "$(hostname)" = "node1" ]; then
 elif [ "$(hostname)" = "node2" ]; then
     # Node2 VXLAN setup
     ip link add vxlan-demo type vxlan id 100 remote 192.168.56.10 dstport 4789 
-    ip link set vxlan0 up
+    ip link set vxlan-demo up
     # Add the vxlan interface to the docker bridge
     brctl addif docker_br vxlan-demo
 

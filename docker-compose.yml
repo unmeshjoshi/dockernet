@@ -1,5 +1,3 @@
-version: '3'
-
 networks:
   vxlan_net:
     driver: bridge

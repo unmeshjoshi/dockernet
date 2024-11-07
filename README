@@ -212,3 +212,41 @@ This setup ensures:
 No IP conflicts between containers on different nodes
 Clear IP range allocation
 Full connectivity across the VXLAN network
+
+
+#Docker VXLAN Network Setup
+This guide demonstrates how to create a VXLAN overlay network between two Docker nodes and deploy nginx containers that can communicate across nodes.
+##Quick Start
+Start the Docker containers that will act as our nodes:
+docker-compose up -d
+##Run the setup script on both nodes:
+Setup node1
+docker exec node1 bash /setup.sh
+Setup node2
+docker exec node2 bash /setup.sh
+This will:
+Create a VXLAN overlay network (10.0.0.0/24)
+Start two nginx containers on that network
+Enable cross-node container communication
+##Verify the Setup
+1. Check container IPs:
+On node1
+docker exec node1 docker inspect web1 | grep IPAddress
+On node2
+docker exec node2 docker inspect web2 | grep IPAddress
+##Test connectivity between containers:
+From node1 to node2's container
+docker exec node1 docker exec web1 ping 10.0.0.12
+From node2 to node1's container
+docker exec node2 docker exec web2 ping 10.0.0.2
+Test nginx access:
+Access node1's nginx from node2
+docker exec node2 curl http://10.0.0.2
+Access node2's nginx from node1
+docker exec node1 curl http://10.0.0.12
+Network Architecture
+VXLAN Network: 10.0.0.0/24
+Node1 Container (web1): 10.0.0.2
+Node2 Container (web2): 10.0.0.12
+VXLAN ID: 100
+VXLAN Port: 4789
