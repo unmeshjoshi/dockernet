@@ -1,0 +1,39 @@
+version: '3'
+
+networks:
+  vxlan_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.56.0/24
+
+services:
+  node1:
+    image: ubuntu:22.04
+    container_name: node1
+    hostname: node1
+    privileged: true  # Needed for network manipulation
+    networks:
+      vxlan_net:
+        ipv4_address: 192.168.56.10
+    volumes:
+      - ./setup.sh:/setup.sh
+    command: sleep infinity
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+
+  node2:
+    image: ubuntu:22.04
+    container_name: node2
+    hostname: node2
+    privileged: true
+    networks:
+      vxlan_net:
+        ipv4_address: 192.168.56.11
+    volumes:
+      - ./setup.sh:/setup.sh
+    command: sleep infinity
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN 
