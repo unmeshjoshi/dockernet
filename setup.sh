@@ -84,3 +84,7 @@ elif [ "$(hostname)" = "node2" ]; then
     docker run -d --name web2  --ip 10.0.0.12 --network vxlan-net nginx 
    
 fi 
+
+# Keep the script running
+echo "Setup completed, keeping container alive..."
+tail -f /dev/null

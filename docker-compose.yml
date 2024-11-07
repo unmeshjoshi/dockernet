@@ -16,7 +16,8 @@ services:
         ipv4_address: 192.168.56.10
     volumes:
       - ./setup.sh:/setup.sh
-    command: sleep infinity
+    entrypoint: ["/bin/bash", "-c", "chmod +x /setup.sh && /setup.sh"]
+    command: ["sleep", "infinity"]
     cap_add:
       - NET_ADMIN
       - SYS_ADMIN
@@ -31,7 +32,8 @@ services:
         ipv4_address: 192.168.56.11
     volumes:
       - ./setup.sh:/setup.sh
-    command: sleep infinity
+    entrypoint: ["/bin/bash", "-c", "chmod +x /setup.sh && /setup.sh"]
+    command: ["sleep", "infinity"]
     cap_add:
       - NET_ADMIN
       - SYS_ADMIN 

@@ -214,39 +214,147 @@ Clear IP range allocation
 Full connectivity across the VXLAN network
 
 
-#Docker VXLAN Network Setup
-This guide demonstrates how to create a VXLAN overlay network between two Docker nodes and deploy nginx containers that can communicate across nodes.
-##Quick Start
-Start the Docker containers that will act as our nodes:
-docker-compose up -d
-##Run the setup script on both nodes:
-Setup node1
-docker exec node1 bash /setup.sh
-Setup node2
-docker exec node2 bash /setup.sh
+# Docker VXLAN Network Demo
+
+This project demonstrates how to create a VXLAN overlay network between two Docker nodes and deploy nginx containers that can communicate across nodes.
+
+## Project Structure
+- docker-compose.yml
+- setup.sh
+- README.md
+
+## Prerequisites
+- Docker and Docker Compose installed
+- Linux host (or WSL2 on Windows)
+- Root/sudo privileges
+
+## Quick Start
+
+1. Clone the repository and navigate to the project directory
+
+2. Make the setup script executable:
+- chmod +x setup.sh
+
+3. Start the containers:
+- docker-compose up -d
+
 This will:
-Create a VXLAN overlay network (10.0.0.0/24)
-Start two nginx containers on that network
-Enable cross-node container communication
-##Verify the Setup
-1. Check container IPs:
-On node1
-docker exec node1 docker inspect web1 | grep IPAddress
-On node2
-docker exec node2 docker inspect web2 | grep IPAddress
-##Test connectivity between containers:
-From node1 to node2's container
-docker exec node1 docker exec web1 ping 10.0.0.12
-From node2 to node1's container
-docker exec node2 docker exec web2 ping 10.0.0.2
-Test nginx access:
-Access node1's nginx from node2
-docker exec node2 curl http://10.0.0.2
-Access node2's nginx from node1
-docker exec node1 curl http://10.0.0.12
-Network Architecture
-VXLAN Network: 10.0.0.0/24
-Node1 Container (web1): 10.0.0.2
-Node2 Container (web2): 10.0.0.12
-VXLAN ID: 100
-VXLAN Port: 4789
+- Create two Ubuntu containers (node1 and node2)
+- Create a management network (192.168.56.0/24)
+- Run setup.sh on both nodes which:
+  - Installs Docker and necessary tools
+  - Creates VXLAN overlay network (10.0.0.0/24)
+  - Starts nginx containers on each node
+
+## Network Architecture
+
+- Management Network: 192.168.56.0/24
+  - node1: 192.168.56.10
+  - node2: 192.168.56.11
+
+- VXLAN Network: 10.0.0.0/24
+  - web1 (on node1): 10.0.0.2
+  - web2 (on node2): 10.0.0.12
+  - VXLAN ID: 100
+  - VXLAN Port: 4789
+
++----------------+               +----------------+
+|     Node1      |                 |     Node2      |
+| 192.168.56.10  |                 | 192.168.56.11  |
+|                |                 |                |
+|  +----------+  |      VXLAN     |  +----------+  |
+|  |  web1    |  |    Tunnel      |  |  web2    |  |
+|  |10.0.0.2  |<------------------->|10.0.0.12  |  |
+|  +----------+  |   (ID: 100)    |  +----------+  |
+|                |                 |                |
++----------------+                 +----------------+
+        |                                |
+        +----------------+---------------+
+                        |
+                Management Network
+                 (192.168.56.0/24)
+
+## Verify the Setup
+
+1. Check container status:
+- docker-compose ps
+
+2. View container logs:
+- docker-compose logs -f
+
+3. Test connectivity between containers:
+- From node1 to node2's container:
+  - docker exec -it node1 docker exec web1 ping 10.0.0.12
+- From node2 to node1's container:
+  - docker exec -it node2 docker exec web2 ping 10.0.0.2
+
+4. Test nginx access:
+- Access node1's nginx from node2:
+  - docker exec -it node2 curl http://10.0.0.2
+- Access node2's nginx from node1:
+  - docker exec -it node1 curl http://10.0.0.12
+
+## Troubleshooting
+
+1. Check VXLAN interfaces:
+- On node1:
+  - docker exec -it node1 ip link show vxlan-demo
+- On node2:
+  - docker exec -it node2 ip link show vxlan-demo
+
+2. Verify Docker networks:
+- On both nodes:
+  - docker exec -it nodeX docker network ls
+  - docker exec -it nodeX docker network inspect vxlan-net
+
+3. Check bridge setup:
+- On both nodes:
+  - docker exec -it nodeX brctl show
+
+4. View Docker daemon logs:
+- On both nodes:
+  - docker exec -it nodeX journalctl -u docker
+
+## Common Issues
+
+1. Container startup failures:
+   - Check logs with `docker-compose logs`
+   - Ensure setup.sh has executable permissions
+   - Verify Docker installation in containers
+
+2. Network connectivity issues:
+   - Verify IP forwarding is enabled
+   - Check VXLAN interface configuration
+   - Ensure bridge network is properly configured
+
+3. Permission issues:
+   - Containers need privileged mode and NET_ADMIN capability
+   - setup.sh needs executable permissions
+
+## Cleanup
+
+To remove everything:
+- Stop and remove containers:
+  - docker-compose down
+- Remove any leftover networks:
+  - docker network prune
+
+## Notes
+- The setup uses privileged containers for network manipulation
+- Static IP assignments are used for clarity
+- Both nginx containers should be accessible from either node
+- The setup script keeps containers running with tail -f /dev/null
+
+## Security Considerations
+- This setup uses privileged containers
+- It's intended for learning/testing purposes
+- For production, consider using:
+  - Docker Swarm
+  - Kubernetes
+  - Other container orchestration platforms
+
+## Contributing
+Feel free to submit issues and enhancement requests!
+
+## License
+This project is licensed under the MIT License - see the LICENSE file for details.
